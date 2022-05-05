@@ -8,6 +8,8 @@
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
 #include <opencv2/videoio.hpp>
+#include <opencv2/video/background_segm.hpp>
+#include <opencv2/video/tracking.hpp>
 #include <opencv2/tracking.hpp>
 #include <opencv2/tracking/tracking_legacy.hpp>
 
@@ -42,12 +44,13 @@ array<Point, 3> triangleCoords;					// cordinates of the triangle
 Mat firstFrame;									// first frame of video
 
 const auto windowname = L"Tracker";
-const auto windownameStr = wstring_to_utf8(windowname);
 const map<int, const wchar_t*> trackerTypes = {
+	{IDC_GOTURN, L"GOTURN"},
 	{IDC_CSRT, L"CSRT"},
 	{IDC_KCF, L"KCF"},
-	{IDC_BOOSTING, L"BOOSTING"},
+	{IDC_DASIAMRPN, L"DaSiamRPN"},
 	{IDC_MIL, L"MIL"},
+	{IDC_BOOSTING, L"BOOSTING"},
 	{IDC_TLD, L"TLD"},
 	{IDC_MEDIANFLOW, L"MEDIANFLOW"},
 	{IDC_MOSSE, L"MOSSE"},
@@ -127,7 +130,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow) {
 	hInst = hInstance; // Store instance handle in our global variable
 
 	HWND hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
-		CW_USEDEFAULT, 0, 200, 350, nullptr, nullptr, hInstance, nullptr);
+		CW_USEDEFAULT, 0, 200, 380, nullptr, nullptr, hInstance, nullptr);
 
 	if (!hWnd) {
 		return FALSE;
@@ -161,7 +164,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 			CreateWindowEx(WS_EX_WINDOWEDGE, L"BUTTON", name, dwStyle, 10, y, 180, 20, hWnd, (HMENU)id, hInst, NULL);
 			y += 30;
 		}
-		SendMessage(GetDlgItem(hWnd, IDC_CSRT), BM_SETCHECK, BST_CHECKED, 0);
+		CreateWindowEx(WS_EX_WINDOWEDGE, L"BUTTON", L"启用背景差分", WS_VISIBLE | WS_CHILD | BS_AUTOCHECKBOX, 10, y, 180, 20, hWnd, (HMENU)IDC_BACKSUB, hInst, NULL);
+		SendMessage(GetDlgItem(hWnd, IDC_GOTURN), BM_SETCHECK, BST_CHECKED, 0);
 		break;
 	}
 	case WM_COMMAND: {
@@ -260,7 +264,7 @@ Ptr<Tracker> getTracker(HWND hDlg) {
 			case IDC_BOOSTING:
 				return upgradeTrackingAPI(legacy::TrackerBoosting::create());
 			case IDC_MIL:
-				return upgradeTrackingAPI(legacy::TrackerMIL::create());
+				return TrackerMIL::create();
 			case IDC_KCF:
 				return TrackerKCF::create();
 			case IDC_TLD:
@@ -269,8 +273,15 @@ Ptr<Tracker> getTracker(HWND hDlg) {
 				return upgradeTrackingAPI(legacy::TrackerMedianFlow::create());
 			case IDC_MOSSE:
 				return upgradeTrackingAPI(legacy::TrackerMOSSE::create());
-			case IDC_CSRT:
-				return TrackerCSRT::create();
+			case IDC_CSRT: {
+				auto params = TrackerCSRT::Params();
+				params.use_color_names = true;
+				return TrackerCSRT::create(params);
+			}
+			case IDC_GOTURN: 
+				return TrackerGOTURN::create();
+			case IDC_DASIAMRPN:
+				return TrackerDaSiamRPN::create();
 			default:
 				break;
 			}
@@ -280,14 +291,21 @@ Ptr<Tracker> getTracker(HWND hDlg) {
 }
 
 void mouseTracking(HWND hDlg, Ptr<Tracker> tracker, PWSTR filename) {
-	cvNamedWindow(windowname, WINDOW_NORMAL | WINDOW_KEEPRATIO | WINDOW_GUI_EXPANDED);
+	const bool useBackSub = IsDlgButtonChecked(hDlg, IDC_BACKSUB) == BST_CHECKED;
+	Ptr<BackgroundSubtractor> pBackSub;
+	if (useBackSub) {
+		//create Background Subtractor objects
+		pBackSub = createBackgroundSubtractorMOG2();
+	}
 
-	auto cap = VideoCapture(wstring_to_utf8(filename), CAP_FFMPEG);
+	cvNamedWindow(windowname, WINDOW_NORMAL | WINDOW_KEEPRATIO | WINDOW_GUI_EXPANDED | CV_WINDOW_OPENGL);
+
+	auto cap = VideoCapture(wstring_to_utf8(filename));
 	if (!cap.isOpened()) {
 		MessageBox(hDlg, L"Could not open the input video", filename, MB_ICONERROR);
 		return;
 	}
-	Mat src;
+	Mat src, fgMask;
 	cap >> src;
 	firstFrame = src.clone();
 	putText(firstFrame, "select center of the maze and then press enter", Point(100, 80), FONT_HERSHEY_COMPLEX, 0.75, Scalar(0, 0, 255), 2);
@@ -306,6 +324,11 @@ void mouseTracking(HWND hDlg, Ptr<Tracker> tracker, PWSTR filename) {
 	int a = 0, b = 0, c = 0, in_center = 0;
 
 	for (auto frame = 1; !src.empty(); frame++, cap >> src) {
+		if (useBackSub) {
+			//update the background model
+			pBackSub->apply(src, fgMask);
+		}
+
 		auto display = src.clone();
 		string arm;
 		// Update tracker

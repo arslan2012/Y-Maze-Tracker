@@ -1318,6 +1318,7 @@ MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
     case WM_DESTROY:
 
         icvRemoveWindow(window_);
+        ownWndTexs.clear();
         // Do nothing!!!
         //PostQuitMessage(0);
         break;
@@ -1674,6 +1675,7 @@ static LRESULT CALLBACK HighGUIProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM 
     case WM_DESTROY:
 
         icvRemoveWindow(window_);
+        ownWndTexs.clear();
         // Do nothing!!!
         //PostQuitMessage(0);
         break;
@@ -1782,6 +1784,7 @@ void cvDestroyAllWindows(void) {
     {
         AutoLock lock(getWindowMutex());
         getWindowsList().clear();
+        ownWndTexs.clear();
     }
 }
 

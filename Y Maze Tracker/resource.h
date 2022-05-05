@@ -29,10 +29,16 @@
 
 
 // radio buttons
-#define IDC_BOOSTING					701
-#define IDC_MIL							702
+#define IDC_GOTURN						701
+#define IDC_CSRT						702
 #define IDC_KCF							703
-#define IDC_TLD							704
-#define IDC_MEDIANFLOW					705
+#define IDC_DASIAMRPN					704
+#define IDC_MIL							705
 #define IDC_MOSSE						706
-#define IDC_CSRT						707
+#define IDC_BOOSTING					707
+#define IDC_TLD							708
+#define IDC_MEDIANFLOW					709
+
+
+// checkbox
+#define IDC_BACKSUB						751

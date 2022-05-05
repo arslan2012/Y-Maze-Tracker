@@ -361,3 +361,10 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+# trained models
+/Y Maze Tracker/dasiamrpn_kernel_cls1.onnx
+/Y Maze Tracker/dasiamrpn_kernel_r1.onnx
+/Y Maze Tracker/dasiamrpn_model.onnx
+/Y Maze Tracker/goturn.caffemodel
+/Y Maze Tracker/goturn.prototxt
